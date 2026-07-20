@@ -38,6 +38,19 @@ export default function Results() {
                     throw new Error(`HTTP error! status: ${res.status}`);
                 }
                 setScore(res.headers.get("total_score"));
+
+                const data = await res.blob();
+                setUrl(URL.createObjectURL(data));
+                setLoading(false);
+
+                const summaryFormData = new FormData();
+                summaryFormData.append("exercise", exercise);
+                summaryFormData.append("rep_count", res.headers.get("rep_count"));
+                summaryFormData.append()
+                const summaryRes = await fetch("http://127.0.0.1:8000/ai-summary/", {
+                    method: "GET",
+                    body: summaryFormData,
+                })
                 const encodedAnalysis = res.headers.get("gpt_analysis");
                 if (encodedAnalysis) {
                     try {
@@ -53,11 +66,6 @@ export default function Results() {
                         setAnalysis('Error decoding analysis');
                     }
                 }
-
-
-                const data = await res.blob();
-                setUrl(URL.createObjectURL(data));
-                setLoading(false);
 
                 // Convert blob data to Video File
                 const processedVideoFile = new File([data], `processed-${videoFile.name}`, {
