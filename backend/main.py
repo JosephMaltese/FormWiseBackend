@@ -175,7 +175,6 @@ def analyze_bicep_curl(output, capture):
                 frame.flags.writeable = True
                 frame = cv.cvtColor(frame, cv.COLOR_RGB2BGR)
 
-                frame_count += 1
                 current_time = frame_count / fps
 
                 # Extract Landmarks
@@ -315,7 +314,7 @@ def analyze_bicep_curl(output, capture):
         print("Partial ROM rep count:", partial_rom_rep_counter)
         print("Cheat rep count:", cheat_rep_count)
 
-        total_score = calculate_score(attempted_rep_counter, complete_rom_rep_counter, partial_rom_rep_counter, cheat_rep_count, eccentric_durations)
+        total_score = calculate_bicep_curl_score(attempted_rep_counter, complete_rom_rep_counter, partial_rom_rep_counter, cheat_rep_count, eccentric_durations)
 
         return (total_score,
                 attempted_rep_counter,
@@ -342,6 +341,9 @@ def analyze_bench_press(output, capture):
     eccentric_durations = []
     eccentric_start_time = None
     min_and_max_rep_angles = []
+    # Every second during the set, we will record the subject's leg angle and average them out at the end
+    leg_angles = []
+    next_recorded_second = 0
 
     with mp_pose.Pose(
         min_detection_confidence = 0.5,
@@ -362,7 +364,6 @@ def analyze_bench_press(output, capture):
                 frame.flags.writeable = True
                 frame = cv.cvtColor(frame, cv.COLOR_RGB2BGR)
 
-                frame_count += 1
                 current_time = frame_count / fps
 
                 # Extract Landmarks
@@ -408,6 +409,11 @@ def analyze_bench_press(output, capture):
 
                     # rep counter logic
                     if last_recorded_arm_angle is not None:
+                        # Only start recording leg angles when the set has officialy begun
+                        if current_time > next_recorded_second:
+                            next_recorded_second = math.floor(current_time) + 1
+                            leg_angles.append(leg_angle)
+
                         # Moving down
                         if (arm_angle - last_recorded_arm_angle <= -5.0):
                             if stage == Stage.CONCENTRIC:
@@ -506,8 +512,11 @@ def analyze_bench_press(output, capture):
     print("Partial ROM rep count:", partial_rom_rep_counter)
     print("Cheat rep count:", cheat_rep_count)
 
-    #total_score = calculate_score(attempted_rep_counter, complete_rom_rep_counter, partial_rom_rep_counter, cheat_rep_count, eccentric_durations)
-    total_score = 0
+    average_leg_angle = sum(leg_angles) / len(leg_angles)
+
+    total_score = calculate_bench_press_score(attempted_rep_counter, complete_rom_rep_counter, partial_rom_rep_counter, cheat_rep_count, eccentric_durations, average_leg_angle)
+
+    print(leg_angles)
 
     return (total_score,
             attempted_rep_counter,
@@ -518,7 +527,7 @@ def analyze_bench_press(output, capture):
             min_and_max_rep_angles)
 
 
-def calculate_score(attempted_rep_counter, complete_rom_rep_counter, partial_rom_rep_counter, cheat_rep_count, eccentric_durations)->int:
+def calculate_bicep_curl_score(attempted_rep_counter, complete_rom_rep_counter, partial_rom_rep_counter, cheat_rep_count, eccentric_durations)->int:
         # Initialize total form analysis score to 0
         total_score = 0
 
@@ -526,18 +535,18 @@ def calculate_score(attempted_rep_counter, complete_rom_rep_counter, partial_rom
         if attempted_rep_counter >= 1:
             total_score += 10
         
-        # Next, evaluate the ROM of the reps. Award 2 points for full ROM, 1 point for partial ROM
+        # Next, evaluate the ROM of the reps. Award 2 points for full ROM, 1 point for partial ROM (max. 20 score)
         possible_rom_points = attempted_rep_counter * 2
         acheived_rom_points = (complete_rom_rep_counter * 2) + (partial_rom_rep_counter)
         rom_score = (acheived_rom_points / possible_rom_points) * 30
         total_score += rom_score
 
-        # Then, assess the stability of the user's form
+        # Then, assess the stability of the user's form (max. 40 score)
         stable_reps = attempted_rep_counter - cheat_rep_count
         stability_score = (stable_reps / attempted_rep_counter) * 40
         total_score += stability_score
 
-        # Finally, asses the duration of the user's eccentric motion
+        # Finally, asses the duration of the user's eccentric motion (max. 20 score)
         possible_duration_points = attempted_rep_counter * 10
         duration_points = 0
         for duration in eccentric_durations:
@@ -546,6 +555,10 @@ def calculate_score(attempted_rep_counter, complete_rom_rep_counter, partial_rom
         total_score += duration_score
 
         return total_score
+
+def calculate_bench_press_score(attempted_rep_counter, complete_rom_rep_counter, partial_rom_rep_counter, cheat_rep_count, eccentric_durations, average_leg_angle)->int:
+    return 0
+
 
 def eccentric_score(duration):
     if duration < 0.5:
