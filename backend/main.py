@@ -80,6 +80,13 @@ async def analyze_video(file: UploadFile = File(...), exercise: str = Form(...))
          partial_rom_rep_count, 
          cheat_rep_count, eccentric_durations,
          min_and_max_rep_angles) = analyze_bench_press(output, capture)
+    elif (exercise == "SQUAT"):
+        (score,
+         rep_count,
+         complete_rom_rep_count,
+         partial_rom_rep_count, 
+         cheat_rep_count, eccentric_durations,
+         min_and_max_rep_angles) = analyze_squat(output, capture)
     else:
         score = 0
         rep_count = 0
@@ -521,6 +528,23 @@ def analyze_bench_press(output, capture):
     total_score = calculate_bench_press_score(attempted_rep_counter, complete_rom_rep_counter, partial_rom_rep_counter, cheat_rep_count, eccentric_durations, average_leg_angle)
 
     return (total_score,
+            attempted_rep_counter,
+            complete_rom_rep_counter,
+            partial_rom_rep_counter,
+            cheat_rep_count,
+            eccentric_durations,
+            min_and_max_rep_angles)
+
+def analyze_squat(output, capture):
+        total_score = 0
+        attempted_rep_counter = 0
+        complete_rom_rep_counter = 0
+        partial_rom_rep_counter = 0
+        cheat_rep_count = 0
+        eccentric_durations = 0
+        min_and_max_rep_angles = []
+
+        return (total_score,
             attempted_rep_counter,
             complete_rom_rep_counter,
             partial_rom_rep_counter,
