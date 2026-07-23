@@ -61,9 +61,10 @@ async def analyze_video(file: UploadFile = File(...), exercise: str = Form(...))
     capture = cv.VideoCapture("input.mp4")
     fourcc = cv.VideoWriter_fourcc(*"avc1")
     fps = int(capture.get(cv.CAP_PROP_FPS))
+    output_fps = fps * (frame_skip - 1) / frame_skip
     width = int(capture.get(cv.CAP_PROP_FRAME_WIDTH))
     height = int(capture.get(cv.CAP_PROP_FRAME_HEIGHT))
-    output = cv.VideoWriter("processed.mp4", fourcc, fps, (width, height))
+    output = cv.VideoWriter("processed.mp4", fourcc, output_fps, (width, height))
 
     if (exercise == "BICEP CURL"):
         (score, rep_count,
@@ -338,6 +339,7 @@ def analyze_bench_press(output, capture):
     starting_torso_angle_recorded = False
     fps = capture.get(cv.CAP_PROP_FPS)
     frame_count = 0
+    processed_frame_count = 0
     eccentric_durations = []
     eccentric_start_time = None
     min_and_max_rep_angles = []
@@ -357,6 +359,8 @@ def analyze_bench_press(output, capture):
                 if frame_count % frame_skip == 0:
                     continue
 
+                processed_frame_count += 1
+
                 frame.flags.writeable = False
                 frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
                 results = pose.process(frame)
@@ -364,7 +368,7 @@ def analyze_bench_press(output, capture):
                 frame.flags.writeable = True
                 frame = cv.cvtColor(frame, cv.COLOR_RGB2BGR)
 
-                current_time = frame_count / fps
+                current_time = processed_frame_count / fps
 
                 # Extract Landmarks
                 try:
@@ -478,7 +482,7 @@ def analyze_bench_press(output, capture):
 
                 # Render rep counter
                 # Setup status box
-                cv.rectangle(frame, (0,0), (225,73), (245,117,16), -1)
+                cv.rectangle(frame, (0,0), (500,73), (245,117,16), -1)
 
                 # Rep data
                 cv.putText(frame, 'REPS', (15,12), 
@@ -488,10 +492,10 @@ def analyze_bench_press(output, capture):
                             cv.FONT_HERSHEY_SIMPLEX, 2, (255,255,255), 2, cv.LINE_AA)
                 
                 # Stage data
-                cv.putText(frame, 'STAGE', (65,12), 
+                cv.putText(frame, 'STAGE', (95,12), 
                             cv.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 1, cv.LINE_AA)
                 cv.putText(frame, stage.name, 
-                            (60,60), 
+                            (90,60), 
                             cv.FONT_HERSHEY_SIMPLEX, 2, (255,255,255), 2, cv.LINE_AA)
 
                 # Cheat indicator
@@ -516,8 +520,6 @@ def analyze_bench_press(output, capture):
 
     total_score = calculate_bench_press_score(attempted_rep_counter, complete_rom_rep_counter, partial_rom_rep_counter, cheat_rep_count, eccentric_durations, average_leg_angle)
 
-    print(leg_angles)
-
     return (total_score,
             attempted_rep_counter,
             complete_rom_rep_counter,
@@ -525,7 +527,6 @@ def analyze_bench_press(output, capture):
             cheat_rep_count,
             eccentric_durations,
             min_and_max_rep_angles)
-
 
 def calculate_bicep_curl_score(attempted_rep_counter, complete_rom_rep_counter, partial_rom_rep_counter, cheat_rep_count, eccentric_durations)->int:
         # Initialize total form analysis score to 0
@@ -557,8 +558,37 @@ def calculate_bicep_curl_score(attempted_rep_counter, complete_rom_rep_counter, 
         return total_score
 
 def calculate_bench_press_score(attempted_rep_counter, complete_rom_rep_counter, partial_rom_rep_counter, cheat_rep_count, eccentric_durations, average_leg_angle)->int:
-    return 0
+    # Initialize total form analysis score to 0
+    total_score = 0
 
+    # First, award the user 10 points for completing at least one valid repetition (up + down movement)
+    if attempted_rep_counter >= 1:
+        total_score += 10
+        
+    # Next, evaluate the ROM of the reps. Award 2 points for full ROM, 1 point for partial ROM (max. 20 score)
+    possible_rom_points = attempted_rep_counter * 2
+    acheived_rom_points = (complete_rom_rep_counter * 2) + (partial_rom_rep_counter)
+    rom_score = (acheived_rom_points / possible_rom_points) * 30
+    total_score += rom_score
+
+    # Then, assess the stability of the user's form (max. 30 score)
+    stable_reps = attempted_rep_counter - cheat_rep_count
+    stability_score = (stable_reps / attempted_rep_counter) * 30
+    total_score += stability_score
+
+    # If leg angle is within the acceptable range, award 10 points (max. 10 score)
+    if (average_leg_angle >= 45.0 and average_leg_angle <= 135.0):
+        total_score += 10
+
+    # Finally, asses the duration of the user's eccentric motion (max. 20 score)
+    possible_duration_points = attempted_rep_counter * 10
+    duration_points = 0
+    for duration in eccentric_durations:
+        duration_points += eccentric_score(duration)
+    duration_score = (duration_points / possible_duration_points) * 20
+    total_score += duration_score
+
+    return total_score
 
 def eccentric_score(duration):
     if duration < 0.5:
