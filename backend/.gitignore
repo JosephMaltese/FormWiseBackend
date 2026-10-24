@@ -1,4 +1,12 @@
-venv
+venv/
 __pycache__/
 *.pyc
 .env
+.idea/
+.DS_Store
+.pytest_cache/
+.ruff_cache/
+
+# Uploaded and annotated videos are regenerated on demand.
+media/
+*.mp4

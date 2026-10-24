@@ -1,1 +1,0 @@
-frame_skip = 4

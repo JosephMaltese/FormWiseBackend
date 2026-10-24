@@ -1,0 +1,29 @@
+[project]
+name = "formcoach-backend"
+version = "0.2.0"
+description = "Pose-based lifting form analysis API"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+    # MediaPipe ships generated protobuf code that trips this on import.
+    "ignore::DeprecationWarning:importlib._bootstrap",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "W"]
+ignore = [
+    "B008",   # FastAPI's Depends()/File() defaults are the documented style
+    "UP042",  # str+Enum is deliberate: these values serialise straight to JSON
+    "B905",   # zip() over already-aligned extrema lists
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
