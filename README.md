@@ -1,4 +1,4 @@
-# FormWise — backend
+# FormWiseBackend
 
 A FastAPI service that scores weightlifting form from a phone video. It runs
 MediaPipe BlazePose over the clip, measures the joint angles that matter for the
