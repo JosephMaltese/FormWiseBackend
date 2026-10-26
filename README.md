@@ -24,8 +24,8 @@ ruff check .
 
 ## Using the API
 
-Analysis takes seconds to minutes, so uploads return a job id rather than
-holding the connection open.
+Analysis takes seconds to minutes. Uploads return a job ID, and clients poll for
+the result while processing runs in the background.
 
 ```bash
 # 1. submit a set
@@ -94,12 +94,11 @@ The pipeline makes **two passes** over the clip:
 1. **Measure** — sample frames down to ~15 fps, run pose estimation once, and
    record every angle the exercise declared into a `MetricTable`. Landmarks are
    cached.
-2. **Annotate** — re-read at full frame rate and draw the overlay, now knowing
-   the final score, each rep's boundaries, and which reps had faults. A single
-   streaming pass cannot know any of that while it is still mid-set.
+2. **Annotate** — re-read at full frame rate and draw the overlay using the
+   final score, rep boundaries, and detected faults.
 
-Keeping measurement separate from interpretation is what makes each lift a
-declaration rather than a bespoke state machine. A full exercise is ~130 lines:
+Measurement and interpretation are shared across exercises. Each lift declares
+its metrics, fault rules, and scoring rubric. A full exercise is ~130 lines:
 
 ```python
 spec = ExerciseSpec(primary_metric="knee_angle", concentric=ASCENDING,
@@ -129,13 +128,13 @@ API.
   ≥15°) on a gap-filled, median-filtered, zero-phase-smoothed signal. Landmark
   jitter and pauses at the bottom cannot manufacture reps, and smoothing does
   not shift rep timings (which would skew every tempo measurement).
-- **Side selection** picks whichever side of the body the camera can actually
-  see, per clip, instead of assuming the left.
+- **Side selection** picks the side of the body the camera can see most clearly
+  in each clip.
 - **Aspect correction** rescales normalised coordinates into units of frame
   height before any trigonometry — otherwise every angle on a non-square video
   is squashed toward the long axis.
-- **Partial credit**: criteria ramp between thresholds, so stopping 2° above
-  parallel is not scored the same as a quarter squat.
+- **Partial credit**: criteria ramp between thresholds, so small differences in
+  range of motion are reflected in the score.
 
 ### The annotated video
 
@@ -162,13 +161,3 @@ Environment variables, prefixed `FORMCOACH_` (or a `.env` file). See
 | `FORMCOACH_MAX_CONCURRENT_ANALYSES` | 2 | Worker-thread cap |
 | `FORMCOACH_ANALYSIS_TTL_SECONDS` | 3600 | Jobs and videos are swept after this |
 
-## Roadmap
-
-- **Redis** — `AnalysisStore` is a `Protocol` with an in-memory implementation;
-  a Redis-backed one is a drop-in replacement and is what lets more than one
-  worker share job state.
-- **Celery** — `AnalysisService._execute` is already a plain sync function
-  taking only a job id, so moving to a queue means swapping `_dispatch` for a
-  `.delay()` and nothing else.
-- Front-view analysis (knee valgus, bar tilt), which a side camera cannot see.
-- Deadlift and overhead press.
